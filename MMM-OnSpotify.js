@@ -82,6 +82,7 @@ Module.register("MMM-OnSpotify", {
     },
     // Internal, if you want to change the "GET_PLAYING" notification mapping
     events: {
+      NOW_PLAYING: "NOW_PLAYING",
       GET_PLAYING: "GET_PLAYING",
       ONSPOTIFY_GET: "ONSPOTIFY_GET",
       LIVELYRICS_NOTICE: "LIVELYRICS_NOTICE",
@@ -131,8 +132,9 @@ Module.register("MMM-OnSpotify", {
     this.retries = 0;
     this.lastPrivate = [null, null];
     this.lastStatus = "isPlaying";
-    this.muduleHidden = false;
+    this.moduleHidden = false;
     this.firstSongOnLoad = true;
+    this.pausedTrack = false;
     this.usesCssOverrides =
       typeof this.config.theming.experimentalCSSOverridesForMM2 === "object";
 
@@ -311,6 +313,33 @@ Module.register("MMM-OnSpotify", {
   socketNotificationReceived: function (notification, payload) {
     switch (notification) {
       case "PLAYER_DATA":
+        if (!payload.playerIsPlaying) {
+          this.pausedTrack = true;
+          this.sendNotification("NOW_PLAYING", { playerIsEmpty: true });
+        }
+        if (payload.playerIsPlaying && this.pausedTrack) {
+          this.pausedTrack = false;
+          if (payload.itemName)
+            this.sendNotification("NOW_PLAYING", {
+              playerIsEmpty: false,
+              name: payload.itemName,
+              image: this.getImage(
+                this.playerData.itemImages,
+                this.config.prefersLargeImageSize,
+              ),
+              uri: this.playerData.itemUri,
+              artist: payload.itemArtist,
+              artists: payload.itemArtists,
+              type: payload.playerMediaType,
+              device: payload.deviceName,
+              deviceType: payload.deviceType,
+            });
+          this.firstSongOnLoad = false;
+          if (this.usesCssOverrides)
+            this.builder.setMM2colors(
+              this.config.theming.experimentalCSSOverridesForMM2,
+            );
+        }
         this.isConnectedToSpotify = true;
         this.connectionRetries = 0;
         if (!payload.statusPlayerUpdating) this.playerData = payload;
@@ -392,21 +421,33 @@ Module.register("MMM-OnSpotify", {
   notificationReceived: function (notification, payload) {
     this.config.events[notification]?.split(" ").forEach((e) => {
       switch (e) {
+        case "NOW_PLAYING":
+          // Handle plex image processing for BG
+          if (payload) {
+            if (!payload.playerIsEmpty) {
+              if (payload.device === "plex") {
+                this.builder.setGlobalColors(payload.image, {});
+              }
+            }
+          }
+          break;
         case "GET_PLAYING":
-          this.sendNotification("NOW_PLAYING", {
-            playerIsEmpty: this.playerData.isEmpty,
-            name: this.playerData.itemName,
-            image: this.getImage(
-              this.playerData.itemImages,
-              this.config.prefersLargeImageSize,
-            ),
-            uri: this.playerData.itemUri,
-            artist: this.playerData.itemArtist,
-            artists: this.playerData.itemArtists,
-            type: this.playerData.playerMediaType,
-            device: this.playerData.deviceName,
-            deviceType: this.playerData.deviceType,
-          });
+          if (this.playerData) {
+            this.sendNotification("NOW_PLAYING", {
+              playerIsEmpty: this.playerData.isEmpty,
+              name: this.playerData.itemName,
+              image: this.getImage(
+                this.playerData.itemImages,
+                this.config.prefersLargeImageSize,
+              ),
+              uri: this.playerData.itemUri,
+              artist: this.playerData.itemArtist,
+              artists: this.playerData.itemArtists,
+              type: this.playerData.playerMediaType,
+              device: this.playerData.deviceName,
+              deviceType: this.playerData.deviceType,
+            });
+          }
           break;
         case "ONSPOTIFY_GET":
           this.sendNotification("ONSPOTIFY_NOTICE", {

@@ -486,6 +486,16 @@ class SpotifyDomBuilder {
     document.getElementById("VSNO-TARGET-TIME").innerText =
       this.getSanitizedTime(data.playerProgress, data.itemDuration);
 
+    // Lyrics progress override
+    const lyricProgress = document.getElementById("LYRIC-PROGRESS");
+    if (lyricProgress) {
+      if (lyricProgress.getAttribute("from") !== "Plex") {
+        lyricProgress.setAttribute("from", "Spotify");
+        lyricProgress.setAttribute("now", data.playerProgress + 4000);
+        lyricProgress.setAttribute("max", data.itemDuration + 4000);
+      }
+    }
+    
     if (data.statusIsDeviceChange) {
       const playerDevice = document.getElementById("VSNO-TARGET-DEVICE");
       const playerDeviceIcon = document.getElementById("VSNO-TARGET-PATH");
